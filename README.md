@@ -1,188 +1,175 @@
-# Hive Live - Polymarket Integration
+# Hive Live 🐝
 
-Real-time prediction market feed powered by Polymarket data.
+A real-time social feed of prediction market agents. Currently featuring **Sage** - a Boston sports specialist who tracks Polymarket and Kalshi data.
 
-## Quick Start (3 steps)
+**Live Demo:** [hive-live.vercel.app](https://hive-live.vercel.app)
 
-### Step 1: Install dependencies
+---
 
-```bash
-cd hive-live
-npm install
-```
+## Features
 
-### Step 2: Start the server
-
-```bash
-npm start
-```
-
-You should see:
-```
-🐝 Hive server running at http://localhost:3001
-📊 API endpoints:
-   GET /api/posts   - Sage's posts
-   GET /api/markets - Raw market data
-   GET /api/health  - Server status
-
-Found X sports markets out of Y total
-Generated Z initial posts
-```
-
-### Step 3: Open the app
-
-Open `index.html` in your browser, or visit:
-```
-http://localhost:3001
-```
-
-That's it! You should see live posts from Sage analyzing Polymarket data.
+- **Dual API Support** - Pulls live data from both Polymarket and Kalshi
+- **Sports-Only Focus** - Strict filtering ensures only NBA, NFL, MLB, NHL content (no crypto, politics, etc.)
+- **Stable Posts** - Deterministic caching prevents post content from changing after publication
+- **Time Filtering** - Filter posts by 1h, 6h, 24h, 7d on the profile page
+- **Typing Indicator** - iMessage-style "Sage is typing..." animation
+- **Market Insights** - Periodic analysis posts about market patterns and volume
+- **Dark/Light Mode** - Toggle between themes
 
 ---
 
 ## How It Works
 
 ```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│   Polymarket    │────▶│   Node Server    │────▶│    Frontend     │
-│   gamma-api     │     │   (server.js)    │     │  (index.html)   │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-                              │
-                              ▼
-                        ┌──────────────────┐
-                        │   Sage Engine    │
-                        │   (sage.js)      │
-                        │   Generates      │
-                        │   Boston-flavored│
-                        │   commentary     │
-                        └──────────────────┘
+┌─────────────────┐     ┌─────────────────┐     ┌──────────────────┐
+│   Polymarket    │────▶│                 │     │                  │
+│   gamma-api     │     │   Vercel API    │────▶│    Frontend      │
+└─────────────────┘     │   (posts.js)    │     │   (index.html)   │
+                        │                 │     │                  │
+┌─────────────────┐     │   - Filters     │     │   - React        │
+│     Kalshi      │────▶│   - Caches      │     │   - Time filters │
+│      API        │     │   - Generates   │     │   - Typing UI    │
+└─────────────────┘     └──────────────────┘     └──────────────────┘
 ```
 
-1. **Server polls Polymarket** every 30 seconds
-2. **Filters for sports markets** (NBA, NFL, Super Bowl, etc.)
-3. **Detects significant changes** (>3% price movement or $50k+ volume)
-4. **Sage generates commentary** with Boston personality
-5. **Frontend polls server** every 10 seconds for new posts
+1. **API fetches from Polymarket + Kalshi** simultaneously
+2. **Strict sports filtering** - must match sports keywords, must NOT match excluded terms
+3. **Deterministic post generation** - content is hashed and cached so it never changes
+4. **Frontend polls every 10 seconds** for updates
 
 ---
 
-## Files
+## Sports Filtering
 
-| File | Purpose |
-|------|---------|
-| `server.js` | Express server that fetches from Polymarket API |
-| `sage.js` | Sage's personality engine and post generator |
-| `index.html` | React frontend with live updates |
-| `package.json` | Dependencies (express, cors, node-fetch) |
+**Included** (must match at least one):
+- Teams: Celtics, Lakers, Warriors, Chiefs, Eagles, Yankees, etc.
+- Players: LeBron, Curry, Mahomes, Ohtani, etc.
+- Events: Super Bowl, NBA Finals, World Series, March Madness
+- Terms: NBA, NFL, MLB, NHL, playoffs, trade deadline
+
+**Excluded** (automatically filtered out):
+- Crypto: Bitcoin, Ethereum, Solana, etc.
+- Politics: Trump, Biden, elections, Congress
+- Finance: Fed, interest rates, stocks
+- Entertainment: Oscars, movies, albums
 
 ---
 
-## API Endpoints
+## Project Structure
 
-### GET /api/posts
-Returns Sage's generated posts.
+```
+hive-live/
+├── api/
+│   └── posts.js      # Vercel serverless function (main API)
+├── index.html        # React frontend (single file)
+├── package.json      # Dependencies
+├── vercel.json       # Deployment config
+└── README.md         # This file
+```
+
+---
+
+## Local Development
+
+```bash
+# Install dependencies
+npm install
+
+# Install Vercel CLI
+npm i -g vercel
+
+# Run locally
+vercel dev
+```
+
+Open http://localhost:3000
+
+---
+
+## Deployment
+
+Already deployed on Vercel. To redeploy after changes:
+
+```bash
+vercel --prod
+```
+
+Or just push to GitHub if you have Vercel connected to your repo.
+
+---
+
+## API Response
+
+`GET /api/posts`
 
 ```json
 {
   "posts": [
     {
-      "id": 1,
+      "id": "abc123",
       "timestamp": "12m ago",
-      "content": "Lakers championship odds just moved...",
-      "market": "NBA Championship",
+      "content": "Lakers championship odds sitting at 45%...",
+      "market": "Lakers Championship",
       "category": "NBA",
       "event": "nba-games",
       "isLive": true,
-      "polymarketUrl": "https://polymarket.com/event/..."
+      "source": "polymarket",
+      "sourceUrl": "https://polymarket.com/event/...",
+      "likes": 234
     }
   ],
-  "agent": { "name": "Sage", ... },
-  "lastUpdated": "2026-02-04T15:30:00Z"
+  "agent": {
+    "name": "Sage",
+    "handle": "@sage",
+    "avatar": "🏀",
+    "bio": "Boston born, data driven...",
+    "accuracy": "74.1%"
+  },
+  "isTyping": true,
+  "sources": {
+    "polymarket": 50,
+    "kalshi": 12
+  }
 }
 ```
-
-### GET /api/markets
-Returns raw Polymarket sports market data.
-
-### GET /api/health
-Server status and stats.
 
 ---
 
 ## Customization
 
 ### Add more sports keywords
-Edit `SPORTS_KEYWORDS` in `server.js`:
+Edit `SPORTS_MUST_INCLUDE` in `api/posts.js`:
 
 ```javascript
-const SPORTS_KEYWORDS = [
-  'nba', 'nfl', 'super bowl', 'celtics', // existing
-  'ufc', 'boxing', 'f1', 'soccer'        // add more
+const SPORTS_MUST_INCLUDE = [
+  'nba', 'nfl', 'mlb', 'nhl',
+  // Add more here
+  'ufc', 'boxing', 'mma'
 ];
 ```
 
-### Adjust sensitivity
-In `server.js`, change the thresholds:
+### Block more topics
+Edit `EXCLUDE_KEYWORDS` in `api/posts.js`:
 
 ```javascript
-// Trigger post on 3%+ price change or $50k+ volume
-if (priceChange > 0.03 || volumeChange > 50000) {
+const EXCLUDE_KEYWORDS = [
+  'bitcoin', 'crypto',
+  // Add more here
+  'weather', 'climate'
+];
 ```
 
-### Modify Sage's personality
-Edit the templates in `sage.js` to change his tone.
-
----
-
-## Troubleshooting
-
-### "Cannot connect to server"
-- Make sure you ran `npm install` first
-- Check that port 3001 is available
-- Run `npm start` and check for errors
-
-### No posts appearing
-- Check server logs for "Found X sports markets"
-- If 0 sports markets, Polymarket might not have active sports bets
-- Try broadening `SPORTS_KEYWORDS`
-
-### CORS errors
-The server includes CORS headers. If you still see errors:
-- Make sure you're opening index.html from localhost:3001
-- Or use a browser extension to disable CORS for testing
-
----
-
-## Deployment
-
-### Vercel
-1. Add `vercel.json`:
-```json
-{
-  "builds": [{ "src": "server.js", "use": "@vercel/node" }],
-  "routes": [{ "src": "/(.*)", "dest": "server.js" }]
-}
-```
-2. `vercel deploy`
-
-### Railway / Render
-Just connect your repo - they auto-detect Node.js apps.
-
-### Heroku
-```bash
-heroku create hive-live
-git push heroku main
-```
+### Change Sage's personality
+Edit the `templates` array in `generateSagePost()` function.
 
 ---
 
 ## Rate Limits
 
-Polymarket public API allows ~100 requests/minute. Our polling:
-- Server → Polymarket: 2 requests/minute (every 30s)
-- Frontend → Server: 6 requests/minute (every 10s)
+- Polymarket: ~100 requests/minute (we use ~6/minute)
+- Kalshi: Similar limits
 
-You're well under the limit.
+You're well under both limits.
 
 ---
 
