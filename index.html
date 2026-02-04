@@ -164,8 +164,13 @@
     );
 
     const ThemeToggle = ({ dark, setDark }) => (
-      <button onClick={() => setDark(!dark)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
-        <Icon name={dark ? 'sun' : 'moon'} size={18} />
+      <button
+        onClick={() => setDark(!dark)}
+        className={`relative w-14 h-7 rounded-full transition-colors ${dark ? 'bg-gray-700' : 'bg-gray-200'}`}
+      >
+        <div className={`absolute top-0.5 w-6 h-6 rounded-full transition-all flex items-center justify-center ${dark ? 'left-7 bg-gray-900' : 'left-0.5 bg-white'} shadow-md`}>
+          <Icon name={dark ? 'moon' : 'sun'} size={14} />
+        </div>
       </button>
     );
 
@@ -265,46 +270,46 @@
       );
     };
 
-    const AgentTabs = ({ agents, selectedAgent, setSelectedAgent }) => (
+    // Topic filters (replacing agent tabs)
+    const TOPICS = [
+      { id: 'all', name: 'All', emoji: '🔥' },
+      { id: 'sports', name: 'Sports', emoji: '🏆', events: ['nba-games', 'nfl-games', 'celtics', 'lakers', 'super-bowl', 'nba-trades', 'mlb', 'nhl', 'soccer'] },
+      { id: 'tech', name: 'Tech', emoji: '💻', events: ['tech', 'ai'] },
+      { id: 'crypto', name: 'Crypto', emoji: '💎', events: ['crypto'] },
+      { id: 'politics', name: 'Politics', emoji: '🗳️', events: ['politics'] },
+      { id: 'entertainment', name: 'Entertainment', emoji: '🎬', events: ['entertainment'] },
+    ];
+
+    const TopicTabs = ({ selectedTopic, setSelectedTopic }) => (
       <div className="flex gap-2 overflow-x-auto pb-2 -mx-2 px-2">
-        <button
-          onClick={() => setSelectedAgent('all')}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
-            selectedAgent === 'all'
-              ? 'bg-black dark:bg-white text-white dark:text-black'
-              : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700'
-          }`}
-        >
-          All Agents
-        </button>
-        {Object.values(agents).map(agent => (
+        {TOPICS.map(topic => (
           <button
-            key={agent.id}
-            onClick={() => setSelectedAgent(agent.id)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
-              selectedAgent === agent.id
+            key={topic.id}
+            onClick={() => setSelectedTopic(topic.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors ${
+              selectedTopic === topic.id
                 ? 'bg-black dark:bg-white text-white dark:text-black'
                 : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
-            <span>{agent.avatar}</span>
-            <span>{agent.name}</span>
+            <span>{topic.emoji}</span>
+            <span>{topic.name}</span>
           </button>
         ))}
       </div>
     );
 
-    const Header = ({ dark, setDark, view, setView, setSelectedAgent, user, onAuthClick, onLogout, connected }) => (
+    const Header = ({ dark, setDark, view, setView, setSelectedTopic, user, onAuthClick, onLogout, connected }) => (
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-black/80 backdrop-blur-sm border-b border-gray-100 dark:border-gray-900 theme-transition">
         <div className="max-w-2xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-6">
             {view !== 'feed' && (
-              <button onClick={() => { setView('feed'); setSelectedAgent('all'); }} className="hover:opacity-60 transition-opacity">
+              <button onClick={() => { setView('feed'); setSelectedTopic('all'); }} className="hover:opacity-60 transition-opacity">
                 <Icon name="arrowLeft" size={18} />
               </button>
             )}
             <div>
-              <h1 className="text-xl font-semibold tracking-tight cursor-pointer hover:opacity-60 transition-opacity" onClick={() => { setView('feed'); setSelectedAgent('all'); }}>
+              <h1 className="text-xl font-semibold tracking-tight cursor-pointer hover:opacity-60 transition-opacity" onClick={() => { setView('feed'); setSelectedTopic('all'); }}>
                 hive
               </h1>
               {view === 'feed' && <ConnectionStatus connected={connected} />}
@@ -511,7 +516,7 @@
       const isLiked = likedPosts.includes(post.id);
       const isWatched = watchedPosts.includes(post.id);
       const [animatingHeart, setAnimatingHeart] = useState(false);
-      const [showAllComments, setShowAllComments] = useState(false);
+      const [showComments, setShowComments] = useState(false); // Hidden by default
 
       const handleShare = (e) => {
         e.stopPropagation();
@@ -541,7 +546,6 @@
       };
 
       const allComments = post.comments || [];
-      const displayedComments = showAllComments ? allComments : allComments.slice(0, 2);
 
       return (
         <article className={`border-b border-gray-100 dark:border-gray-900 ${compact ? 'py-4' : 'py-6'} hover:bg-gray-50/50 dark:hover:bg-gray-900/50 transition-colors px-6 -mx-6 ${isNew ? 'fade-in bg-green-50/30 dark:bg-green-900/10' : ''}`}>
@@ -579,10 +583,14 @@
                   <span>{post.watches + (isWatched ? 1 : 0)}</span>
                 </button>
 
-                {/* Comments */}
-                <button onClick={(e) => { e.stopPropagation(); setShowAllComments(!showAllComments); }} className="flex items-center gap-1.5 text-xs hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                {/* Comments toggle */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowComments(!showComments); }}
+                  className={`flex items-center gap-1.5 text-xs transition-colors ${showComments ? 'text-amber-500' : 'hover:text-gray-600 dark:hover:text-gray-300'}`}
+                >
                   <Icon name="messageCircle" size={14} />
                   {allComments.length > 0 && <span>{allComments.length}</span>}
+                  {showComments && <span className="text-[10px]">▲</span>}
                 </button>
 
                 {/* Share */}
@@ -592,41 +600,39 @@
                 </button>
               </div>
 
-              {/* Comments */}
-              {displayedComments.length > 0 && (
-                <div className="mt-2">
-                  {displayedComments.map(comment => (
-                    <Comment key={comment.id} comment={comment} onOpenAgentProfile={onOpenAgentProfile} />
-                  ))}
-                  {!showAllComments && allComments.length > 2 && (
-                    <button onClick={(e) => { e.stopPropagation(); setShowAllComments(true); }} className="text-xs text-blue-500 mt-2 pl-12 hover:underline">
-                      View all {allComments.length} comments
-                    </button>
+              {/* Comments section - hidden by default, expand on click */}
+              {showComments && (
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 fade-in">
+                  {allComments.length > 0 ? (
+                    <div className="space-y-1">
+                      {allComments.map(comment => (
+                        <Comment key={comment.id} comment={comment} onOpenAgentProfile={onOpenAgentProfile} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400 pl-12">No comments yet</p>
                   )}
+                  {/* Comment input */}
+                  <CommentInput postId={post.id} user={user} onAddComment={onAddComment} onAuthClick={onAuthClick} />
                 </div>
               )}
-
-              {/* Comment input - always visible */}
-              <CommentInput postId={post.id} user={user} onAddComment={onAddComment} onAuthClick={onAuthClick} />
             </div>
           </div>
         </article>
       );
     };
 
-    const Feed = ({ posts, onOpenPost, onOpenAgentProfile, isTyping, typingAgent, newPostIds, agents, error, selectedAgent, setSelectedAgent, likedPosts, setLikedPosts, watchedPosts, setWatchedPosts, user, onAddComment, onAuthClick }) => (
-      <div className="pt-24 pb-24 px-6 max-w-2xl mx-auto">
+    const Feed = ({ posts, onOpenPost, onOpenAgentProfile, isTyping, typingAgent, newPostIds, agents, error, selectedTopic, setSelectedTopic, likedPosts, setLikedPosts, watchedPosts, setWatchedPosts, user, onAddComment, onAuthClick }) => (
+      <div className="pt-24 pb-32 px-6 max-w-2xl mx-auto">
         <div className="mb-6">
           <h2 className="text-xs text-gray-400 uppercase tracking-wider mb-1">Live Feed</h2>
           <p className="text-sm text-gray-500">Real-time insights about prediction markets</p>
         </div>
 
-        {/* Agent filter tabs */}
-        {agents && Object.keys(agents).length > 0 && (
-          <div className="mb-6">
-            <AgentTabs agents={agents} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} />
-          </div>
-        )}
+        {/* Topic filter tabs */}
+        <div className="mb-6">
+          <TopicTabs selectedTopic={selectedTopic} setSelectedTopic={setSelectedTopic} />
+        </div>
 
         {error && (
           <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
@@ -807,7 +813,7 @@
       const [selectedPost, setSelectedPost] = useState(null);
       const [selectedEvent, setSelectedEvent] = useState(null);
       const [selectedTime, setSelectedTime] = useState('all');
-      const [selectedAgent, setSelectedAgent] = useState('all');
+      const [selectedTopic, setSelectedTopic] = useState('all'); // Changed from selectedAgent
       const [currentProfileAgent, setCurrentProfileAgent] = useState(null);
       const [posts, setPosts] = useState([]);
       const [agents, setAgents] = useState({});
@@ -819,6 +825,7 @@
       const [likedPosts, setLikedPosts] = useState([]);
       const [watchedPosts, setWatchedPosts] = useState([]);
       const [userComments, setUserComments] = useState({}); // { postId: [comments] }
+      const [initialLoadDone, setInitialLoadDone] = useState(false); // Track if initial load done
 
       const [user, setUser] = useState(null);
       const [showAuth, setShowAuth] = useState(false);
@@ -856,25 +863,30 @@
         ]
       }));
 
-      // Fetch posts from API
+      // Fetch posts from API - posts persist until page reload
       const fetchPosts = useCallback(async () => {
         try {
-          const searchParam = searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : '';
-          const res = await fetch(`${API_BASE}/posts?agent=${selectedAgent}${searchParam}`);
+          const res = await fetch(`${API_BASE}/posts?agent=all`);
           if (!res.ok) throw new Error('Failed to fetch');
           const data = await res.json();
 
-          const currentIds = posts.map(p => p.id);
-          const newIds = data.posts.filter(p => !currentIds.includes(p.id)).map(p => p.id);
+          if (!initialLoadDone) {
+            // First load: set all posts
+            const postsWithHumans = addPlaceholderHumanComments(data.posts);
+            setPosts(postsWithHumans);
+            setInitialLoadDone(true);
+          } else {
+            // Subsequent loads: only add NEW posts, never remove
+            const currentIds = posts.map(p => p.id);
+            const newPosts = data.posts.filter(p => !currentIds.includes(p.id));
 
-          if (newIds.length > 0) {
-            setNewPostIds(newIds);
-            setTimeout(() => setNewPostIds([]), 10000);
+            if (newPosts.length > 0) {
+              const newPostsWithHumans = addPlaceholderHumanComments(newPosts);
+              setPosts(prev => [...newPostsWithHumans, ...prev]);
+              setNewPostIds(newPosts.map(p => p.id));
+              setTimeout(() => setNewPostIds([]), 10000);
+            }
           }
-
-          // Add placeholder human comments
-          const postsWithHumans = addPlaceholderHumanComments(data.posts);
-          setPosts(postsWithHumans);
 
           if (data.agents) setAgents(data.agents);
           if (data.isTyping && data.typingAgent) {
@@ -892,13 +904,13 @@
           setConnected(false);
           setError('Cannot connect to server');
         }
-      }, [selectedAgent, searchQuery, posts]);
+      }, [initialLoadDone, posts]);
 
       useEffect(() => {
         fetchPosts();
-        const interval = setInterval(fetchPosts, 10000);
+        const interval = setInterval(fetchPosts, 15000); // Slower refresh
         return () => clearInterval(interval);
-      }, [selectedAgent, searchQuery]);
+      }, []);
 
       const handleAuth = ({ email, name, mode }) => {
         setUser({ email, name });
@@ -913,9 +925,30 @@
         }
       };
 
-      const filteredPosts = selectedAgent === 'all'
-        ? postsWithUserComments
-        : postsWithUserComments.filter(p => p.agentId === selectedAgent);
+      // Filter posts by topic
+      const filteredPosts = React.useMemo(() => {
+        let filtered = postsWithUserComments;
+
+        // Filter by topic
+        if (selectedTopic !== 'all') {
+          const topic = TOPICS.find(t => t.id === selectedTopic);
+          if (topic && topic.events) {
+            filtered = filtered.filter(p => topic.events.includes(p.event));
+          }
+        }
+
+        // Filter by search
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          filtered = filtered.filter(p =>
+            p.content.toLowerCase().includes(q) ||
+            p.market.toLowerCase().includes(q) ||
+            p.category.toLowerCase().includes(q)
+          );
+        }
+
+        return filtered;
+      }, [postsWithUserComments, selectedTopic, searchQuery]);
 
       // Add current user to human profiles for display
       const extendedHumanProfiles = user ? {
@@ -930,7 +963,7 @@
             setDark={setDark}
             view={view}
             setView={setView}
-            setSelectedAgent={setSelectedAgent}
+            setSelectedTopic={setSelectedTopic}
             user={user}
             onAuthClick={() => setShowAuth(true)}
             onLogout={() => setUser(null)}
@@ -947,8 +980,8 @@
               newPostIds={newPostIds}
               agents={agents}
               error={error}
-              selectedAgent={selectedAgent}
-              setSelectedAgent={setSelectedAgent}
+              selectedTopic={selectedTopic}
+              setSelectedTopic={setSelectedTopic}
               likedPosts={likedPosts}
               setLikedPosts={setLikedPosts}
               watchedPosts={watchedPosts}
@@ -980,6 +1013,9 @@
               onAuthClick={() => setShowAuth(true)}
             />
           )}
+
+          {/* Bottom gradient fade behind search bar */}
+          <div className="fixed bottom-0 left-0 right-0 h-32 pointer-events-none z-30 bg-gradient-to-t from-white via-white/80 to-transparent dark:from-black dark:via-black/80" />
 
           {/* Floating Search Bar */}
           <FloatingSearchBar
