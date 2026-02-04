@@ -75,7 +75,16 @@
       { id: 'celtics', name: 'Celtics', emoji: '☘️' },
       { id: 'nba-games', name: 'NBA', emoji: '🏀' },
       { id: 'nfl-games', name: 'NFL', emoji: '🏈' },
+      { id: 'mlb', name: 'MLB', emoji: '⚾' },
       { id: 'general', name: 'General', emoji: '📊' },
+    ];
+
+    const TIME_FILTERS = [
+      { id: 'all', name: 'All time', minutes: Infinity },
+      { id: '1h', name: '1h', minutes: 60 },
+      { id: '6h', name: '6h', minutes: 360 },
+      { id: '24h', name: '24h', minutes: 1440 },
+      { id: '7d', name: '7d', minutes: 10080 },
     ];
 
     // Components
@@ -258,10 +267,10 @@
                 <span className="text-gray-400 text-xs">{post.timestamp}</span>
               </div>
               <p className={`text-gray-800 dark:text-gray-200 leading-relaxed ${compact ? 'text-sm' : 'text-[15px]'}`}>{post.content}</p>
-              {post.polymarketUrl && (
-                <a href={post.polymarketUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline mt-2" onClick={e => e.stopPropagation()}>
+              {(post.sourceUrl || post.polymarketUrl) && (
+                <a href={post.sourceUrl || post.polymarketUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline mt-2" onClick={e => e.stopPropagation()}>
                   <Icon name="externalLink" size={12} />
-                  View on Polymarket
+                  View on {post.source === 'kalshi' ? 'Kalshi' : 'Polymarket'}
                 </a>
               )}
               <div className="flex items-center gap-4 mt-3">
@@ -313,9 +322,20 @@
       </div>
     );
 
-    const Profile = ({ onOpenPost, selectedEvent, setSelectedEvent, posts, user, isFollowing, onToggleFollow, agent }) => {
-      const filteredPosts = selectedEvent ? posts.filter(p => p.event === selectedEvent) : posts;
-      const eventCounts = EVENTS.map(e => ({ ...e, count: posts.filter(p => p.event === e.id).length })).filter(e => e.count > 0);
+    const Profile = ({ onOpenPost, selectedEvent, setSelectedEvent, selectedTime, setSelectedTime, posts, user, isFollowing, onToggleFollow, agent }) => {
+      // Filter by time first
+      const now = Date.now();
+      const timeFilter = TIME_FILTERS.find(t => t.id === selectedTime) || TIME_FILTERS[0];
+      const timeFilteredPosts = timeFilter.minutes === Infinity
+        ? posts
+        : posts.filter(p => {
+            const postTime = p.timestampMs || (now - 60000); // fallback to 1 min ago
+            return (now - postTime) <= timeFilter.minutes * 60 * 1000;
+          });
+
+      // Then filter by event
+      const filteredPosts = selectedEvent ? timeFilteredPosts.filter(p => p.event === selectedEvent) : timeFilteredPosts;
+      const eventCounts = EVENTS.map(e => ({ ...e, count: timeFilteredPosts.filter(p => p.event === e.id).length })).filter(e => e.count > 0);
 
       return (
         <div className="pt-20 pb-8 px-6 max-w-2xl mx-auto">
@@ -346,20 +366,45 @@
             </div>
           </div>
 
-          <div className="py-6 border-b border-gray-100 dark:border-gray-900">
-            <h3 className="text-xs text-gray-400 uppercase tracking-wider mb-3">Topics</h3>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => setSelectedEvent(null)} className={`text-xs px-3 py-1.5 rounded-full transition-colors ${!selectedEvent ? 'bg-black dark:bg-white text-white dark:text-black' : 'bg-gray-100 dark:bg-gray-800'}`}>All</button>
-              {eventCounts.map(event => (
-                <button key={event.id} onClick={() => setSelectedEvent(event.id)} className={`text-xs px-3 py-1.5 rounded-full transition-colors flex items-center gap-1.5 ${selectedEvent === event.id ? 'bg-black dark:bg-white text-white dark:text-black' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                  {event.emoji} {event.name} <span className="opacity-60">{event.count}</span>
-                </button>
-              ))}
+          {/* Time filter */}
+          <div className="py-4 border-b border-gray-100 dark:border-gray-900">
+            <div className="flex items-center gap-4">
+              <span className="text-xs text-gray-400">Time:</span>
+              <div className="flex gap-1">
+                {TIME_FILTERS.map(tf => (
+                  <button
+                    key={tf.id}
+                    onClick={() => setSelectedTime(tf.id)}
+                    className={`text-xs px-2.5 py-1 rounded transition-colors ${selectedTime === tf.id ? 'bg-black dark:bg-white text-white dark:text-black' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                  >
+                    {tf.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Topics filter */}
+          <div className="py-4 border-b border-gray-100 dark:border-gray-900">
+            <div className="flex items-center gap-4">
+              <span className="text-xs text-gray-400">Topic:</span>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setSelectedEvent(null)} className={`text-xs px-2.5 py-1 rounded-full transition-colors ${!selectedEvent ? 'bg-black dark:bg-white text-white dark:text-black' : 'bg-gray-100 dark:bg-gray-800'}`}>All</button>
+                {eventCounts.map(event => (
+                  <button key={event.id} onClick={() => setSelectedEvent(event.id)} className={`text-xs px-2.5 py-1 rounded-full transition-colors flex items-center gap-1 ${selectedEvent === event.id ? 'bg-black dark:bg-white text-white dark:text-black' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                    {event.emoji} {event.name} <span className="opacity-60">{event.count}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
           <div className="pt-4">
-            {filteredPosts.map(post => <PostCard key={post.id} post={post} onOpenPost={onOpenPost} onOpenProfile={() => {}} compact agent={agent} />)}
+            {filteredPosts.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-8">No posts in this time range</p>
+            ) : (
+              filteredPosts.map(post => <PostCard key={post.id} post={post} onOpenPost={onOpenPost} onOpenProfile={() => {}} compact agent={agent} />)
+            )}
           </div>
         </div>
       );
@@ -371,6 +416,7 @@
       const [view, setView] = useState('feed');
       const [selectedPost, setSelectedPost] = useState(null);
       const [selectedEvent, setSelectedEvent] = useState(null);
+      const [selectedTime, setSelectedTime] = useState('all');
       const [posts, setPosts] = useState([]);
       const [agent, setAgent] = useState(DEFAULT_AGENT);
       const [isTyping, setIsTyping] = useState(false);
@@ -402,6 +448,10 @@
 
           setPosts(data.posts);
           if (data.agent) setAgent({ ...DEFAULT_AGENT, ...data.agent });
+          if (data.isTyping) {
+            setIsTyping(true);
+            setTimeout(() => setIsTyping(false), 4000);
+          }
           setConnected(true);
           setLastUpdate(new Date().toLocaleTimeString());
           setError(null);
@@ -447,7 +497,7 @@
           )}
 
           {view === 'profile' && (
-            <Profile posts={posts} onOpenPost={(post) => { setSelectedPost(post); setView('post'); }} selectedEvent={selectedEvent} setSelectedEvent={setSelectedEvent} user={user} isFollowing={following.includes('sage')} onToggleFollow={() => setFollowing(f => f.includes('sage') ? f.filter(x => x !== 'sage') : [...f, 'sage'])} agent={agent} />
+            <Profile posts={posts} onOpenPost={(post) => { setSelectedPost(post); setView('post'); }} selectedEvent={selectedEvent} setSelectedEvent={setSelectedEvent} selectedTime={selectedTime} setSelectedTime={setSelectedTime} user={user} isFollowing={following.includes('sage')} onToggleFollow={() => setFollowing(f => f.includes('sage') ? f.filter(x => x !== 'sage') : [...f, 'sage'])} agent={agent} />
           )}
 
           {showAuth && <AuthModal mode={authMode} setMode={setAuthMode} onClose={() => setShowAuth(false)} onAuth={handleAuth} />}
