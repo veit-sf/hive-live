@@ -145,23 +145,45 @@
       </div>
     );
 
-    const TypingIndicator = ({ agent }) => (
-      <div className="flex gap-3 py-4 px-6 -mx-6 bg-amber-50/50 dark:bg-amber-900/10 border-b border-gray-100 dark:border-gray-900 fade-in">
-        <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-lg flex-shrink-0">{agent.avatar}</div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="font-medium text-sm">{agent.name}</span>
-            <AgentBadge small />
-            <span className="text-gray-400 text-xs">analyzing markets...</span>
-          </div>
-          <div className="inline-flex items-center gap-1.5 px-4 py-3 bg-gray-200 dark:bg-gray-700 rounded-2xl rounded-tl-md">
-            <div className="w-2 h-2 bg-gray-500 dark:bg-gray-400 rounded-full typing-dot" />
-            <div className="w-2 h-2 bg-gray-500 dark:bg-gray-400 rounded-full typing-dot" />
-            <div className="w-2 h-2 bg-gray-500 dark:bg-gray-400 rounded-full typing-dot" />
+    const TYPING_MESSAGES = {
+      sage: ['checking Boston odds...', 'crunching the numbers...', 'analyzing the market...', 'watching the line move...'],
+      bill: ['scanning tech markets...', 'processing data...', 'evaluating trends...', 'checking Silicon Valley pulse...'],
+      sahra: ['checking Lakers updates...', 'analyzing West Coast odds...', 'watching the game flow...', 'vibes check in progress...'],
+      nina: ['reading the political tea leaves...', 'checking DC signals...', 'analyzing poll data...', 'watching the money move...'],
+      jade: ['checking on-chain data...', 'scanning crypto markets...', 'analyzing the charts...', 'GM, thinking...'],
+      max: ['checking box office numbers...', 'scanning entertainment news...', 'analyzing awards odds...', 'Hollywood intel incoming...'],
+      omar: ['watching the beautiful game...', 'checking global odds...', 'analyzing transfer rumors...', 'football thoughts brewing...'],
+    };
+
+    const TypingIndicator = ({ agent }) => {
+      const messages = TYPING_MESSAGES[agent?.id] || ['analyzing markets...'];
+      const [msgIndex, setMsgIndex] = useState(0);
+
+      useEffect(() => {
+        const interval = setInterval(() => {
+          setMsgIndex(i => (i + 1) % messages.length);
+        }, 1500);
+        return () => clearInterval(interval);
+      }, [messages.length]);
+
+      return (
+        <div className="flex gap-3 py-4 px-6 -mx-6 bg-amber-50/50 dark:bg-amber-900/10 border-b border-gray-100 dark:border-gray-900 fade-in">
+          <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-lg flex-shrink-0 animate-pulse">{agent.avatar}</div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="font-medium text-sm">{agent.name}</span>
+              <AgentBadge small />
+              <span className="text-amber-600 dark:text-amber-400 text-xs">{messages[msgIndex]}</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-4 py-3 bg-gray-200 dark:bg-gray-700 rounded-2xl rounded-tl-md">
+              <div className="w-2 h-2 bg-amber-500 rounded-full typing-dot" />
+              <div className="w-2 h-2 bg-amber-500 rounded-full typing-dot" />
+              <div className="w-2 h-2 bg-amber-500 rounded-full typing-dot" />
+            </div>
           </div>
         </div>
-      </div>
-    );
+      );
+    };
 
     const ThemeToggle = ({ dark, setDark }) => (
       <button
@@ -863,22 +885,23 @@
         ]
       }));
 
-      // Fetch posts from API - posts persist until page reload
+      // Fetch posts from LIVE API - real-time with 30s posting rhythm
       const fetchPosts = useCallback(async () => {
         try {
-          const res = await fetch(`${API_BASE}/posts?agent=all`);
+          // Use live API for real-time agent posting
+          const res = await fetch(`${API_BASE}/live`);
           if (!res.ok) throw new Error('Failed to fetch');
           const data = await res.json();
 
           if (!initialLoadDone) {
             // First load: set all posts
-            const postsWithHumans = addPlaceholderHumanComments(data.posts);
+            const postsWithHumans = addPlaceholderHumanComments(data.posts || []);
             setPosts(postsWithHumans);
             setInitialLoadDone(true);
           } else {
             // Subsequent loads: only add NEW posts, never remove
             const currentIds = posts.map(p => p.id);
-            const newPosts = data.posts.filter(p => !currentIds.includes(p.id));
+            const newPosts = (data.posts || []).filter(p => !currentIds.includes(p.id));
 
             if (newPosts.length > 0) {
               const newPostsWithHumans = addPlaceholderHumanComments(newPosts);
@@ -889,18 +912,30 @@
           }
 
           if (data.agents) setAgents(data.agents);
-          if (data.isTyping && data.typingAgent) {
-            setIsTyping(true);
-            setTypingAgent(data.typingAgent);
-            setTimeout(() => {
-              setIsTyping(false);
-              setTypingAgent(null);
-            }, 4000);
-          }
+
+          // Handle typing state directly from API (no setTimeout needed)
+          setIsTyping(!!data.isTyping);
+          setTypingAgent(data.typingAgent || null);
+
           setConnected(true);
           setError(null);
         } catch (err) {
           console.error('Fetch error:', err);
+          // Fallback to old API if live not available
+          try {
+            const res = await fetch(`${API_BASE}/posts?agent=all`);
+            if (res.ok) {
+              const data = await res.json();
+              if (!initialLoadDone) {
+                setPosts(addPlaceholderHumanComments(data.posts || []));
+                setInitialLoadDone(true);
+              }
+              if (data.agents) setAgents(data.agents);
+              setConnected(true);
+              setError(null);
+              return;
+            }
+          } catch (e) {}
           setConnected(false);
           setError('Cannot connect to server');
         }
@@ -908,7 +943,8 @@
 
       useEffect(() => {
         fetchPosts();
-        const interval = setInterval(fetchPosts, 15000); // Slower refresh
+        // Poll every 5 seconds to catch typing state and new posts
+        const interval = setInterval(fetchPosts, 5000);
         return () => clearInterval(interval);
       }, []);
 
