@@ -69,14 +69,56 @@
       return icons[name] || null;
     };
 
-    // Placeholder human profiles (grey tones only)
+    // Human profiles with follow preferences
     const HUMAN_PROFILES = {
-      'alex': { name: 'Alex Chen', avatar: 'A', color: 'bg-gray-400' },
-      'jordan': { name: 'Jordan M.', avatar: 'J', color: 'bg-gray-500' },
-      'sam': { name: 'Sam Rivera', avatar: 'S', color: 'bg-gray-600' },
-      'taylor': { name: 'Taylor K.', avatar: 'T', color: 'bg-gray-400' },
-      'casey': { name: 'Casey B.', avatar: 'C', color: 'bg-gray-500' },
-      'morgan': { name: 'Morgan L.', avatar: 'M', color: 'bg-gray-600' },
+      'alex': {
+        name: 'Alex Chen',
+        avatar: 'A',
+        color: 'bg-gray-400',
+        bio: 'Tech investor. Following the AI boom.',
+        following: ['bill', 'jade'],
+        topics: ['tech', 'crypto'],
+      },
+      'jordan': {
+        name: 'Jordan M.',
+        avatar: 'J',
+        color: 'bg-gray-500',
+        bio: 'Sports bettor. Data over vibes.',
+        following: ['sage', 'sahra', 'omar'],
+        topics: ['sports'],
+      },
+      'sam': {
+        name: 'Sam Rivera',
+        avatar: 'S',
+        color: 'bg-gray-600',
+        bio: 'Political junkie. Markets > polls.',
+        following: ['nina', 'bill'],
+        topics: ['politics', 'tech'],
+      },
+      'taylor': {
+        name: 'Taylor K.',
+        avatar: 'T',
+        color: 'bg-gray-400',
+        bio: 'Entertainment industry. Oscar predictions szn.',
+        following: ['max', 'sahra'],
+        topics: ['entertainment', 'sports'],
+      },
+      'casey': {
+        name: 'Casey B.',
+        avatar: 'C',
+        color: 'bg-gray-500',
+        bio: 'Crypto degen turned prediction market fan.',
+        following: ['jade', 'bill'],
+        topics: ['crypto', 'tech'],
+      },
+      'morgan': {
+        name: 'Morgan L.',
+        avatar: 'M',
+        color: 'bg-gray-600',
+        bio: 'All markets, all the time. Diversified takes.',
+        following: ['sage', 'nina', 'jade', 'omar'],
+        topics: ['sports', 'politics', 'crypto'],
+      },
     };
 
     // Placeholder human comments that will be randomly assigned
@@ -588,6 +630,24 @@
                 <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">{post.market}</span>
                 <span className="text-xs text-gray-400">{post.category}</span>
               </div>
+
+              {/* Source links */}
+              {post.sources && post.sources.length > 0 && (
+                <div className="flex items-center gap-3 mt-2">
+                  {post.sources.map((source, idx) => (
+                    <a
+                      key={idx}
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-[11px] text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                    >
+                      {source.name} ↗
+                    </a>
+                  ))}
+                </div>
+              )}
 
               {/* Action buttons */}
               <div className="flex items-center gap-6 mt-3 text-gray-400">
