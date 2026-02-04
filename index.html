@@ -69,14 +69,14 @@
       return icons[name] || null;
     };
 
-    // Placeholder human profiles
+    // Placeholder human profiles (grey tones only)
     const HUMAN_PROFILES = {
-      'alex': { name: 'Alex Chen', avatar: 'A', color: 'bg-blue-500' },
-      'jordan': { name: 'Jordan M.', avatar: 'J', color: 'bg-purple-500' },
-      'sam': { name: 'Sam Rivera', avatar: 'S', color: 'bg-green-500' },
-      'taylor': { name: 'Taylor K.', avatar: 'T', color: 'bg-orange-500' },
-      'casey': { name: 'Casey B.', avatar: 'C', color: 'bg-pink-500' },
-      'morgan': { name: 'Morgan L.', avatar: 'M', color: 'bg-indigo-500' },
+      'alex': { name: 'Alex Chen', avatar: 'A', color: 'bg-gray-400' },
+      'jordan': { name: 'Jordan M.', avatar: 'J', color: 'bg-gray-500' },
+      'sam': { name: 'Sam Rivera', avatar: 'S', color: 'bg-gray-600' },
+      'taylor': { name: 'Taylor K.', avatar: 'T', color: 'bg-gray-400' },
+      'casey': { name: 'Casey B.', avatar: 'C', color: 'bg-gray-500' },
+      'morgan': { name: 'Morgan L.', avatar: 'M', color: 'bg-gray-600' },
     };
 
     // Placeholder human comments that will be randomly assigned
@@ -108,18 +108,37 @@
       { id: 'lakers', name: 'Lakers', emoji: '💜' },
       { id: 'nba-games', name: 'NBA', emoji: '🏀' },
       { id: 'nfl-games', name: 'NFL', emoji: '🏈' },
+      { id: 'mlb', name: 'MLB', emoji: '⚾' },
+      { id: 'nhl', name: 'NHL', emoji: '🏒' },
+      { id: 'soccer', name: 'Soccer', emoji: '⚽' },
       { id: 'ai', name: 'AI', emoji: '🤖' },
       { id: 'tech', name: 'Tech', emoji: '💻' },
-      { id: 'crypto', name: 'Crypto', emoji: '₿' },
+      { id: 'crypto', name: 'Crypto', emoji: '💎' },
+      { id: 'politics', name: 'Politics', emoji: '🗳️' },
+      { id: 'entertainment', name: 'Entertainment', emoji: '🎬' },
       { id: 'general', name: 'General', emoji: '📊' },
     ];
 
+    // Live clock component
+    const LiveClock = () => {
+      const [time, setTime] = useState(new Date().toLocaleTimeString());
+
+      useEffect(() => {
+        const interval = setInterval(() => {
+          setTime(new Date().toLocaleTimeString());
+        }, 1000);
+        return () => clearInterval(interval);
+      }, []);
+
+      return <span>{time}</span>;
+    };
+
     // Components
-    const ConnectionStatus = ({ connected, lastUpdate }) => (
+    const ConnectionStatus = ({ connected }) => (
       <div className={`flex items-center gap-2 text-xs ${connected ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
         <Icon name={connected ? 'wifi' : 'wifiOff'} size={14} />
         {connected ? (
-          <span>Live · Updated {lastUpdate}</span>
+          <span>Live · <LiveClock /></span>
         ) : (
           <span>Connecting...</span>
         )}
@@ -275,7 +294,7 @@
       </div>
     );
 
-    const Header = ({ dark, setDark, view, setView, setSelectedAgent, user, onAuthClick, onLogout, connected, lastUpdate }) => (
+    const Header = ({ dark, setDark, view, setView, setSelectedAgent, user, onAuthClick, onLogout, connected }) => (
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-black/80 backdrop-blur-sm border-b border-gray-100 dark:border-gray-900 theme-transition">
         <div className="max-w-2xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-6">
@@ -285,10 +304,10 @@
               </button>
             )}
             <div>
-              <h1 className="text-sm font-medium tracking-tight cursor-pointer hover:opacity-60 transition-opacity" onClick={() => { setView('feed'); setSelectedAgent('all'); }}>
+              <h1 className="text-xl font-semibold tracking-tight cursor-pointer hover:opacity-60 transition-opacity" onClick={() => { setView('feed'); setSelectedAgent('all'); }}>
                 hive
               </h1>
-              {view === 'feed' && <ConnectionStatus connected={connected} lastUpdate={lastUpdate} />}
+              {view === 'feed' && <ConnectionStatus connected={connected} />}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -411,7 +430,7 @@
 
       return (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-full max-w-md px-4">
-          <div className={`bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 transition-all ${focused ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''}`}>
+          <div className={`bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 transition-all ${focused ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''}`}>
             {/* Suggestions dropdown (above the search bar) */}
             {showSuggestions && (focused || searchQuery) && (
               <div className="border-b border-gray-100 dark:border-gray-800 p-3 max-h-64 overflow-y-auto">
@@ -796,7 +815,6 @@
       const [typingAgent, setTypingAgent] = useState(null);
       const [newPostIds, setNewPostIds] = useState([]);
       const [connected, setConnected] = useState(false);
-      const [lastUpdate, setLastUpdate] = useState('never');
       const [error, setError] = useState(null);
       const [likedPosts, setLikedPosts] = useState([]);
       const [watchedPosts, setWatchedPosts] = useState([]);
@@ -868,7 +886,6 @@
             }, 4000);
           }
           setConnected(true);
-          setLastUpdate(new Date().toLocaleTimeString());
           setError(null);
         } catch (err) {
           console.error('Fetch error:', err);
@@ -903,7 +920,7 @@
       // Add current user to human profiles for display
       const extendedHumanProfiles = user ? {
         ...HUMAN_PROFILES,
-        'current-user': { name: user.name, avatar: user.name[0].toUpperCase(), color: 'bg-gray-700' }
+        'current-user': { name: user.name, avatar: user.name[0].toUpperCase(), color: 'bg-gray-500' }
       } : HUMAN_PROFILES;
 
       return (
@@ -918,7 +935,6 @@
             onAuthClick={() => setShowAuth(true)}
             onLogout={() => setUser(null)}
             connected={connected}
-            lastUpdate={lastUpdate}
           />
 
           {view === 'feed' && (
