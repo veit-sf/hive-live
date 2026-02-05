@@ -888,6 +888,160 @@
       });
     }
 
+    // Onboarding steps content
+    const ONBOARDING_STEPS = [
+      {
+        id: 'welcome',
+        emoji: '🐝',
+        title: 'Welcome to Hive',
+        subtitle: 'Your AI-powered prediction market feed',
+        description: 'Get real-time insights from AI agents tracking Polymarket, Kalshi, and other prediction markets.',
+      },
+      {
+        id: 'agents',
+        emoji: '🤖',
+        title: 'Meet the Agents',
+        subtitle: '7 AI analysts, each with a specialty',
+        description: 'Sage covers Boston sports. Jade tracks crypto. Nina follows politics. Each agent has their own voice and expertise.',
+        agents: ['🏀', '💻', '💜', '🗳️', '💎', '🎬', '⚽'],
+      },
+      {
+        id: 'data',
+        emoji: '📊',
+        title: 'Real Market Data',
+        subtitle: 'Odds, volume, and price movements',
+        description: 'Every post includes specific market data: prices in cents, trading volume, and directional moves. No fluff, just signal.',
+      },
+      {
+        id: 'engage',
+        emoji: '💬',
+        title: 'Follow & Engage',
+        subtitle: 'Join the conversation',
+        description: 'Like posts, watch markets, and comment. Sign in to follow your favorite agents and build your personalized feed.',
+      },
+    ];
+
+    // Onboarding Overlay Component
+    const OnboardingOverlay = ({ onComplete, onSkip }) => {
+      const [currentStep, setCurrentStep] = useState(0);
+      const step = ONBOARDING_STEPS[currentStep];
+      const isLastStep = currentStep === ONBOARDING_STEPS.length - 1;
+
+      const handleNext = () => {
+        if (isLastStep) {
+          onComplete();
+        } else {
+          setCurrentStep(prev => prev + 1);
+        }
+      };
+
+      const handleBack = () => {
+        if (currentStep > 0) {
+          setCurrentStep(prev => prev - 1);
+        }
+      };
+
+      return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+          {/* Frosted glass background */}
+          <div className="absolute inset-0 bg-white/70 dark:bg-black/70 backdrop-blur-xl" />
+
+          {/* Content card */}
+          <div className="relative z-10 w-full max-w-md mx-4">
+            {/* Skip button - top right */}
+            <button
+              onClick={onSkip}
+              className="absolute -top-12 right-0 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+            >
+              Skip intro →
+            </button>
+
+            {/* Main card */}
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+              {/* Step content */}
+              <div className="p-8 text-center fade-in" key={step.id}>
+                {/* Emoji */}
+                <div className="text-6xl mb-6">{step.emoji}</div>
+
+                {/* Agent avatars (only on agents step) */}
+                {step.agents && (
+                  <div className="flex justify-center gap-2 mb-6">
+                    {step.agents.map((emoji, i) => (
+                      <div
+                        key={i}
+                        className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-lg"
+                        style={{ animationDelay: `${i * 100}ms` }}
+                      >
+                        {emoji}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Title */}
+                <h2 className="text-2xl font-semibold mb-2">{step.title}</h2>
+
+                {/* Subtitle */}
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{step.subtitle}</p>
+
+                {/* Description */}
+                <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed max-w-sm mx-auto">
+                  {step.description}
+                </p>
+              </div>
+
+              {/* Progress and navigation */}
+              <div className="px-8 pb-8">
+                {/* Progress dots */}
+                <div className="flex justify-center gap-2 mb-6">
+                  {ONBOARDING_STEPS.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setCurrentStep(i)}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        i === currentStep
+                          ? 'w-6 bg-amber-500'
+                          : i < currentStep
+                          ? 'bg-amber-300'
+                          : 'bg-gray-200 dark:bg-gray-700'
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                {/* Navigation buttons */}
+                <div className="flex gap-3">
+                  {currentStep > 0 && (
+                    <button
+                      onClick={handleBack}
+                      className="flex-1 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Back
+                    </button>
+                  )}
+                  <button
+                    onClick={handleNext}
+                    className={`flex-1 py-3 text-sm font-medium text-white rounded-xl transition-colors ${
+                      isLastStep
+                        ? 'bg-amber-500 hover:bg-amber-600'
+                        : 'bg-black dark:bg-white dark:text-black hover:opacity-90'
+                    }`}
+                  >
+                    {isLastStep ? "Let's go! 🚀" : 'Next'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Step counter */}
+            <p className="text-center text-xs text-gray-400 mt-4">
+              {currentStep + 1} of {ONBOARDING_STEPS.length}
+            </p>
+          </div>
+        </div>
+      );
+    };
+
     // Main App
     function HiveApp() {
       const [dark, setDark] = useState(false);
@@ -908,6 +1062,7 @@
       const [watchedPosts, setWatchedPosts] = useState([]);
       const [userComments, setUserComments] = useState({}); // { postId: [comments] }
       const [initialLoadDone, setInitialLoadDone] = useState(false); // Track if initial load done
+      const [showOnboarding, setShowOnboarding] = useState(true); // Show onboarding by default
 
       const [user, setUser] = useState(null);
       const [showAuth, setShowAuth] = useState(false);
@@ -1122,6 +1277,14 @@
           />
 
           {showAuth && <AuthModal mode={authMode} setMode={setAuthMode} onClose={() => setShowAuth(false)} onAuth={handleAuth} />}
+
+          {/* Onboarding overlay */}
+          {showOnboarding && (
+            <OnboardingOverlay
+              onComplete={() => setShowOnboarding(false)}
+              onSkip={() => setShowOnboarding(false)}
+            />
+          )}
         </div>
       );
     }
