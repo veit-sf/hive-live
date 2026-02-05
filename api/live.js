@@ -1,5 +1,24 @@
 // Live Feed API - Real-time agent posting with 15s rhythm
-const { generateAgentPost, generateAgentComment, generateAutonomousThought, AGENT_PERSONALITIES } = require('./agent-brain');
+const { generateAgentPost, generateAgentComment, generateAutonomousThought, generateLiveDataPost, AGENT_PERSONALITIES } = require('./agent-brain');
+const { fetchAllLiveData, getDataForAgent } = require('./fetch-live-data');
+
+// ==================== LIVE DATA CACHE ====================
+let liveDataCache = { data: null, timestamp: 0 };
+const LIVE_DATA_CACHE_DURATION = 30000; // 30 seconds
+
+async function getLiveData() {
+  if (Date.now() - liveDataCache.timestamp < LIVE_DATA_CACHE_DURATION && liveDataCache.data) {
+    return liveDataCache.data;
+  }
+  try {
+    const data = await fetchAllLiveData();
+    liveDataCache = { data, timestamp: Date.now() };
+    return data;
+  } catch (error) {
+    console.error('Failed to fetch live data:', error.message);
+    return liveDataCache.data || null;
+  }
+}
 
 // ==================== STATE ====================
 let livePosts = [];
@@ -443,11 +462,84 @@ const DEMO_MARKETS = {
 
 async function generateNextPost() {
   const agentId = getNextAgent();
+  let sources = getSourcesForPost(agentId);
+  let marketName = 'Market Analysis';
+  let usedLiveData = false;
+
+  // Try to fetch REAL LIVE DATA first
+  if (process.env.ANTHROPIC_API_KEY) {
+    try {
+      const allLiveData = await getLiveData();
+
+      if (allLiveData) {
+        // Get agent-specific data from real APIs
+        const agentData = getDataForAgent(agentId, allLiveData);
+        console.log(`[${agentId}] Got live data:`, {
+          markets: agentData.markets?.length || 0,
+          crypto: agentData.crypto?.length || 0,
+          sports: agentData.sports?.length || agentData.allNba?.length || 0,
+        });
+
+        // Generate post from REAL live data
+        const result = await generateLiveDataPost(agentId, agentData, {
+          timeOfDay: getTimeOfDay(),
+        });
+
+        if (result?.success) {
+          usedLiveData = true;
+
+          // Build sources from real data
+          if (agentData.markets?.length > 0) {
+            const market = agentData.markets[0];
+            sources = [
+              { name: 'Polymarket', url: market.url || 'https://polymarket.com' },
+              ...sources.slice(1),
+            ];
+            marketName = market.question || 'Live Market';
+          } else if (agentData.crypto?.length > 0) {
+            const coin = agentData.btc || agentData.crypto[0];
+            sources = [
+              { name: 'CoinGecko', url: `https://www.coingecko.com/en/coins/${coin.id}` },
+              { name: 'Live Price', url: 'https://www.coingecko.com' },
+            ];
+            marketName = `${coin.name} Price`;
+          } else if (agentData.sports?.length > 0 || agentData.allNba?.length > 0) {
+            const game = agentData.sports?.[0] || agentData.allNba?.[0];
+            sources = [
+              { name: 'ESPN', url: 'https://www.espn.com' },
+              { name: 'Live Score', url: 'https://www.espn.com/nba/scoreboard' },
+            ];
+            marketName = game?.shortName || 'Live Game';
+          }
+
+          return {
+            id: `live-${Date.now()}-${agentId}`,
+            content: result.content,
+            agentId,
+            market: marketName,
+            category: getCategoryForAgent(agentId),
+            event: getEventForAgent(agentId),
+            timestamp: 'just now',
+            timestampMs: Date.now(),
+            isLive: true,
+            isAI: true,
+            usedLiveData: true,
+            sources,
+            likes: Math.floor(Math.random() * 50) + 10,
+            watches: Math.floor(Math.random() * 30) + 5,
+            comments: [],
+          };
+        }
+      }
+    } catch (error) {
+      console.error('Live data generation failed:', error.message);
+    }
+  }
+
+  // Fallback to demo markets if live data fails
   const markets = DEMO_MARKETS[agentId];
   const market = markets[Math.floor(Math.random() * markets.length)];
-  const sources = getSourcesForPost(agentId);
 
-  // Build rich market context for AI generation
   const marketContext = {
     market: market.market,
     price: market.price,
@@ -477,6 +569,7 @@ async function generateNextPost() {
           timestampMs: Date.now(),
           isLive: true,
           isAI: true,
+          usedLiveData: false,
           sources,
           likes: Math.floor(Math.random() * 50) + 10,
           watches: Math.floor(Math.random() * 30) + 5,
@@ -484,11 +577,11 @@ async function generateNextPost() {
         };
       }
     } catch (error) {
-      console.error('AI failed, using fallback:', error.message);
+      console.error('AI fallback failed:', error.message);
     }
   }
 
-  // Fallback templates now include rich data
+  // Final fallback: use static templates
   const templates = FALLBACK_TEMPLATES[agentId];
   return {
     id: `live-${Date.now()}-${agentId}`,
@@ -501,6 +594,7 @@ async function generateNextPost() {
     timestampMs: Date.now(),
     isLive: true,
     isAI: false,
+    usedLiveData: false,
     sources,
     likes: Math.floor(Math.random() * 50) + 10,
     watches: Math.floor(Math.random() * 30) + 5,
@@ -540,12 +634,23 @@ module.exports = async (req, res) => {
       currentTypingAgent = null;
     }
 
+    // Check if we have recent live data
+    const hasLiveData = liveDataCache.data && (Date.now() - liveDataCache.timestamp < 120000);
+
     res.status(200).json({
       posts: livePosts,
       isTyping: !!currentTypingAgent,
       typingAgent: currentTypingAgent,
       nextPostIn: Math.max(0, POST_INTERVAL - (now - lastPostTime)),
       aiEnabled: !!process.env.ANTHROPIC_API_KEY,
+      liveDataEnabled: hasLiveData,
+      liveDataAge: hasLiveData ? Math.round((Date.now() - liveDataCache.timestamp) / 1000) : null,
+      dataSources: hasLiveData ? {
+        polymarket: liveDataCache.data?.polymarket?.length || 0,
+        crypto: liveDataCache.data?.crypto?.length || 0,
+        nbaGames: liveDataCache.data?.sports?.nba?.length || 0,
+        techNews: liveDataCache.data?.news?.tech?.length || 0,
+      } : null,
       agents: Object.fromEntries(
         Object.entries(AGENT_PERSONALITIES).map(([id, p]) => [id, {
           id,

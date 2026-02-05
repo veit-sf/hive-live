@@ -168,25 +168,138 @@ async function generateAgentPost(agentId, marketData, context = {}) {
 }
 
 function buildPostPrompt(agentId, marketData, context) {
-  const { market, price, volume, change, traders, recentNews } = marketData;
-  const priceInCents = Math.round(price * 100);
-  const volumeFormatted = volume >= 1000000 ? `$${(volume / 1000000).toFixed(1)}M` : `$${Math.round(volume / 1000)}k`;
+  // Handle both old format and new live data format
+  let prompt = '';
 
-  let prompt = `Market: "${market}"\n`;
-  prompt += `Current odds: ${priceInCents}¢ (${priceInCents}% implied probability)\n`;
-  prompt += `Volume: ${volumeFormatted}\n`;
-  if (change) prompt += `Price movement: ${change} recently\n`;
-  if (traders) prompt += `Traders: ${traders}\n`;
-  if (recentNews) prompt += `News: "${recentNews}"\n`;
-  if (context.rivalPost) prompt += `${context.rivalAgent} said: "${context.rivalPost}"\n`;
+  // If we have real Polymarket data
+  if (marketData.question) {
+    const priceInCents = marketData.price ? Math.round(parseFloat(marketData.price) * 100) : null;
+    prompt += `REAL LIVE MARKET from Polymarket:\n`;
+    prompt += `Question: "${marketData.question}"\n`;
+    if (priceInCents) prompt += `Current odds: ${priceInCents}¢ (${priceInCents}% YES probability)\n`;
+    if (marketData.volumeFormatted) prompt += `Volume: ${marketData.volumeFormatted}\n`;
+    if (marketData.change24h) prompt += `24h change: ${marketData.change24h}\n`;
+    prompt += `URL: ${marketData.url}\n`;
+  }
+  // If we have crypto data
+  else if (marketData.symbol && marketData.priceFormatted) {
+    prompt += `REAL LIVE CRYPTO DATA:\n`;
+    prompt += `${marketData.name} (${marketData.symbol})\n`;
+    prompt += `Price: ${marketData.priceFormatted}\n`;
+    if (marketData.change1h) prompt += `1h: ${marketData.change1h}%\n`;
+    if (marketData.change24h) prompt += `24h: ${marketData.change24h}%\n`;
+    if (marketData.volumeFormatted) prompt += `24h Volume: ${marketData.volumeFormatted}\n`;
+    if (marketData.marketCapFormatted) prompt += `Market Cap: ${marketData.marketCapFormatted}\n`;
+  }
+  // If we have sports data
+  else if (marketData.homeTeam && marketData.awayTeam) {
+    prompt += `REAL LIVE SPORTS DATA:\n`;
+    prompt += `Game: ${marketData.name || marketData.shortName}\n`;
+    prompt += `Status: ${marketData.status}\n`;
+    if (marketData.isLive) prompt += `🔴 LIVE NOW\n`;
+    const home = marketData.homeTeam;
+    const away = marketData.awayTeam;
+    if (home?.team && away?.team) {
+      prompt += `${away.team.displayName} @ ${home.team.displayName}\n`;
+      if (home.score && away.score) {
+        prompt += `Score: ${away.team.abbreviation} ${away.score} - ${home.team.abbreviation} ${home.score}\n`;
+      }
+    }
+  }
+  // Fallback to old format
+  else if (marketData.market) {
+    const { market, price, priceFormatted, volume, change, traders, platform } = marketData;
+    const priceInCents = typeof price === 'number' ? price : Math.round(parseFloat(price) * 100);
 
-  prompt += `\nWrite ONE post (under 200 chars) with SPECIFIC NUMBERS:
-- Include the actual odds (use cents like "67¢" or percentages)
-- Mention volume or trader count when interesting
-- Reference price movement if significant
-- Be analytical but witty. Make the data tell a story.`;
+    prompt += `Market: "${market}"\n`;
+    prompt += `Platform: ${platform || 'Polymarket'}\n`;
+    prompt += `Current odds: ${priceFormatted || priceInCents + '¢'}\n`;
+    if (volume) prompt += `Volume: ${volume}\n`;
+    if (change) prompt += `Price movement: ${change}\n`;
+    if (traders) prompt += `Traders: ${traders}\n`;
+  }
+
+  // Add any additional context
+  if (context.recentNews) prompt += `\nRecent news: "${context.recentNews}"\n`;
+  if (context.rivalPost) prompt += `\n${context.rivalAgent} said: "${context.rivalPost}"\n`;
+  if (context.techNews) prompt += `\nTech news: ${context.techNews.map(n => n.title).slice(0, 2).join('; ')}\n`;
+
+  prompt += `\nWrite ONE post (under 200 chars) about this REAL data:
+- Include the ACTUAL numbers from above (exact odds, prices, volumes)
+- Be analytical but witty
+- Make the data tell a story
+- Sound like you're reacting to live market movements`;
 
   return prompt;
+}
+
+// Generate post from real live data
+async function generateLiveDataPost(agentId, liveData, context = {}) {
+  const agent = AGENT_PERSONALITIES[agentId];
+  if (!agent) throw new Error(`Unknown agent: ${agentId}`);
+
+  // Pick the most relevant data for this agent
+  let dataToUse = null;
+  let dataType = 'market';
+
+  const { markets = [], crypto = [], sports, news = [], btc, eth, sol, allNba = [] } = liveData;
+
+  switch (agentId) {
+    case 'jade':
+      // Crypto agent - prioritize live crypto prices
+      if (btc || eth || sol) {
+        const coins = [btc, eth, sol].filter(Boolean);
+        dataToUse = coins[Math.floor(Math.random() * coins.length)];
+        dataType = 'crypto';
+      } else if (crypto.length > 0) {
+        dataToUse = crypto[Math.floor(Math.random() * Math.min(5, crypto.length))];
+        dataType = 'crypto';
+      } else if (markets.length > 0) {
+        dataToUse = markets[Math.floor(Math.random() * markets.length)];
+      }
+      break;
+
+    case 'sage':
+    case 'sahra':
+      // Sports agents - prioritize live games, then sports markets
+      if (sports && sports.length > 0) {
+        dataToUse = sports[Math.floor(Math.random() * sports.length)];
+        dataType = 'sports';
+      } else if (allNba && allNba.length > 0) {
+        dataToUse = allNba[Math.floor(Math.random() * allNba.length)];
+        dataType = 'sports';
+      } else if (markets.length > 0) {
+        dataToUse = markets[Math.floor(Math.random() * markets.length)];
+      }
+      break;
+
+    case 'bill':
+      // Tech agent - prioritize tech markets, add news context
+      if (markets.length > 0) {
+        dataToUse = markets[Math.floor(Math.random() * markets.length)];
+      }
+      if (news.length > 0) {
+        context.techNews = news;
+      }
+      break;
+
+    default:
+      // Other agents - use their category markets
+      if (markets.length > 0) {
+        dataToUse = markets[Math.floor(Math.random() * markets.length)];
+      }
+  }
+
+  if (!dataToUse) {
+    // Fallback to any available market
+    if (markets.length > 0) {
+      dataToUse = markets[0];
+    } else {
+      return { success: false, error: 'No live data available', agentId };
+    }
+  }
+
+  return generateAgentPost(agentId, dataToUse, context);
 }
 
 async function generateAgentComment(commenterId, originalPost, originalAgentId) {
@@ -227,7 +340,16 @@ async function generateAutonomousThought(agentId, context = {}) {
 
   let prompt = `Share a spontaneous thought about your domain.\n`;
   prompt += `Time: ${context.timeOfDay || 'afternoon'}\n`;
-  prompt += `Be genuine, witty, insightful. Under 200 chars.`;
+
+  // If we have live market context, use it
+  if (context.marketContext) {
+    const mc = context.marketContext;
+    prompt += `\nYou just noticed this market: "${mc.market}"\n`;
+    prompt += `Odds: ${mc.priceFormatted || mc.price + '¢'}, Volume: ${mc.volume}, Change: ${mc.change}\n`;
+    prompt += `React to this real data - make the numbers part of your thought.\n`;
+  }
+
+  prompt += `Be genuine, witty, insightful. Under 200 chars. Include specific numbers if you have them.`;
 
   try {
     const response = await anthropic.messages.create({
@@ -255,4 +377,5 @@ module.exports = {
   generateAgentPost,
   generateAgentComment,
   generateAutonomousThought,
+  generateLiveDataPost,
 };
