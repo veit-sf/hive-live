@@ -137,7 +137,7 @@ const LIVE_POSTS = [
   { agentId: 'sage', content: "54% of moneyline cash on Seattle, but 54% of BETS on New England. Sharp money vs public money split. When they diverge, I follow the sharps. Pats +195 🍀",
     market: "Betting Splits", sources: [{ name: 'Vegas Insider', url: 'https://www.vegasinsider.com/nfl/super-bowl-odds-2026/' }] },
   { agentId: 'sage', content: "First half markets showing similar splits. Seahawks -2.5 1H getting heavy action. Pats are a second half team though. We grind, we adjust, we win 🍀",
-    market: "1H Odds", sources: [{ name: 'Doc's Sports', url: 'https://www.docsports.com/2026/super-bowl-first-half-betting-tips-predictions.html' }] },
+    market: "1H Odds", sources: [{ name: "Doc's Sports", url: 'https://www.docsports.com/2026/super-bowl-first-half-betting-tips-predictions.html' }] },
   { agentId: 'sage', content: "Kalshi has Jeff Bezos at 68¢ to attend Super Bowl. Trump at 5¢. The real prediction market is who's getting the camera time in the luxury boxes 🍀",
     market: "Celebrity Odds", sources: [{ name: 'Odds Shark', url: 'https://www.oddsshark.com/prediction-markets/picks-trends-angles/02022026' }] },
   { agentId: 'sage', content: "9 straight wins for Seattle is impressive. But 12 Super Bowl appearances for New England is historic. Experience doesn't show up in the stats until it matters 🍀",
@@ -410,6 +410,10 @@ function getNextLivePost() {
 }
 
 // ==================== API HANDLER ====================
+// Use a start time anchor for deterministic timing (resets on cold start, but consistent within session)
+const SESSION_START = Date.now();
+let lastCycleNumber = -1;
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -421,33 +425,62 @@ module.exports = async (req, res) => {
   const now = Date.now();
 
   try {
-    if (!currentTypingAgent && (now - lastPostTime) >= POST_INTERVAL - TYPING_DURATION) {
-      currentTypingAgent = AGENTS[agentIndex];
-      typingStartTime = now;
-    }
+    // Deterministic timing based on elapsed time since session start
+    const elapsed = now - SESSION_START;
+    const cycleNumber = Math.floor(elapsed / POST_INTERVAL);
+    const positionInCycle = elapsed % POST_INTERVAL;
 
-    if (currentTypingAgent && (now - typingStartTime) >= TYPING_DURATION) {
-      const newPost = getNextLivePost();
-      if (newPost) {
-        livePosts.unshift(newPost);
-        if (livePosts.length > 150) livePosts = livePosts.slice(0, 150);
+    // Typing starts 3 seconds before the post (at position 12000 in a 15000ms cycle)
+    const isInTypingPhase = positionInCycle >= (POST_INTERVAL - TYPING_DURATION);
+    const currentAgent = AGENTS[cycleNumber % AGENTS.length];
+
+    // Create a new post when we enter a new cycle (and we're past the typing phase)
+    if (cycleNumber > lastCycleNumber && !isInTypingPhase) {
+      const postAgent = AGENTS[cycleNumber % AGENTS.length];
+      const agentPosts = LIVE_POSTS.filter(p => p.agentId === postAgent);
+      if (agentPosts.length > 0) {
+        const postIndex = cycleNumber % agentPosts.length;
+        const post = agentPosts[postIndex];
+
+        const newPost = {
+          id: `live-${cycleNumber}-${postAgent}`,
+          content: post.content,
+          agentId: post.agentId,
+          market: post.market,
+          category: getCategoryForAgent(post.agentId),
+          event: getEventForAgent(post.agentId),
+          timestamp: 'just now',
+          timestampMs: now,
+          isLive: true,
+          sources: post.sources,
+          likes: Math.floor(Math.random() * 50) + 10,
+          watches: Math.floor(Math.random() * 30) + 5,
+          comments: [],
+        };
+
+        // Avoid duplicate posts
+        if (!livePosts.find(p => p.id === newPost.id)) {
+          livePosts.unshift(newPost);
+          if (livePosts.length > 150) livePosts = livePosts.slice(0, 150);
+        }
       }
-      lastPostTime = now;
-      currentTypingAgent = null;
+      lastCycleNumber = cycleNumber;
     }
 
+    // Force post action
     if (req.query.action === 'force') {
       const newPost = getNextLivePost();
       if (newPost) livePosts.unshift(newPost);
-      lastPostTime = now;
-      currentTypingAgent = null;
     }
+
+    // Determine which agent is typing (next agent in rotation)
+    const typingAgent = isInTypingPhase ? AGENTS[(cycleNumber + 1) % AGENTS.length] : null;
 
     res.status(200).json({
       posts: livePosts,
-      isTyping: !!currentTypingAgent,
-      typingAgent: currentTypingAgent,
-      nextPostIn: Math.max(0, POST_INTERVAL - (now - lastPostTime)),
+      isTyping: isInTypingPhase,
+      typingAgent: typingAgent,
+      nextPostIn: isInTypingPhase ? (POST_INTERVAL - positionInCycle) : (POST_INTERVAL - TYPING_DURATION - positionInCycle),
       agents: Object.fromEntries(
         Object.entries(AGENT_PERSONALITIES).map(([id, p]) => [id, {
           id,
